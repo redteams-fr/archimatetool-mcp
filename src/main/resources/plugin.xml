@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <!-- Starts the MCP server once the Archi workbench is up -->
+   <extension point="org.eclipse.ui.startup">
+      <startup class="fr.redteams.archi.mcp.Startup"/>
+   </extension>
+
+   <extension point="org.eclipse.core.runtime.preferences">
+      <initializer class="fr.redteams.archi.mcp.PreferenceInitializer"/>
+   </extension>
+
+   <!-- Edit > Preferences... (Archi > Settings... on macOS) -->
+   <extension point="org.eclipse.ui.preferencePages">
+      <page
+            id="fr.redteams.archi.mcp.preferences"
+            name="MCP Server"
+            class="fr.redteams.archi.mcp.ui.McpPreferencePage"/>
+   </extension>
+
+</plugin>

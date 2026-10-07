@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "archi": {
+      "type": "remote",
+      "url": "http://127.0.0.1:18765/mcp",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:ARCHI_MCP_TOKEN}"
+      }
+    }
+  }
+}

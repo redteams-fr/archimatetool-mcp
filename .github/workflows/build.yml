@@ -1,0 +1,102 @@
+name: Build
+
+# - push on main / pull request: build, unit tests, end-to-end tests in Archi
+# - any tag: same, then publish a GitHub release with the .archiplugin.
+#   The tag is the version: 1.2.0, v1.2.0, or 1.2.0-rc1 (suffix = pre-release).
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Archi used to compile against and to run the end-to-end tests
+  ARCHI_VERSION: 5.10.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create the release on tags
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Version from tag
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if ! [[ "$GITHUB_REF_NAME" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9_-]+)?$ ]]; then
+              echo "::error::Tag '$GITHUB_REF_NAME' is not a version: use X.Y.Z, vX.Y.Z or X.Y.Z-suffix (e.g. 1.2.0, v1.2.0, 1.2.0-rc1)"
+              exit 1
+            fi
+            echo "gradle_args=-Pversion=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Cache Archi SDK
+        uses: actions/cache@v6
+        with:
+          path: .archi-sdk
+          key: archi-sdk-${{ env.ARCHI_VERSION }}
+
+      - name: Download Archi
+        run: ./scripts/fetch-archi.sh "$ARCHI_VERSION"
+
+      - name: Build and unit tests
+        run: ./gradlew build ${{ steps.version.outputs.gradle_args }}
+
+      - name: End-to-end tests (Archi on 127.0.0.1)
+        run: ./e2e/run.sh
+
+      - name: End-to-end tests (Archi on 0.0.0.0)
+        run: ./e2e/run.sh --remote
+
+      - name: Collect release files
+        run: |
+          mkdir -p release
+          cp build/dist/*.archiplugin build/libs/*.jar release/
+          (cd release && sha256sum -- * > SHA256SUMS.txt)
+          ls -l release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: archi-mcp
+          path: release/
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<EOF
+          ## Installation
+
+          1. Télécharger \`$(cd release && ls -- *.archiplugin)\` ci-dessous.
+          2. Dans Archi : **Aide > Manage Plug-ins… > Install New…**, choisir le fichier, redémarrer Archi.
+          3. **Préférences > MCP Server** affiche l'état du serveur et la commande \`claude mcp add\` à copier.
+
+          Construit et testé de bout en bout avec Archi ${ARCHI_VERSION}. Sommes de contrôle : \`SHA256SUMS.txt\`.
+          EOF
+
+          prerelease=()
+          [[ "$TAG" == *-* ]] && prerelease=(--prerelease)
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Workflow re-run: refresh the files of the existing release
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* \
+              --verify-tag \
+              --title "Archi MCP Server $TAG" \
+              --notes-file notes.md \
+              --generate-notes \
+              "${prerelease[@]}"
+          fi

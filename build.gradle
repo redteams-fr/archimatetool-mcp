@@ -1,0 +1,150 @@
+plugins {
+    id 'java'
+}
+
+def bundleId = 'fr.redteams.archi.mcp'
+
+// Version: gradle.properties, or -Pversion=... (the release workflow passes the git tag).
+// Accepted: 1.2.3, v1.2.3, 1.2.3-rc1. The OSGi bundle version is 1.2.3.<timestamp>[-rc1].
+def versionMatch = (project.version.toString() =~ /^v?(\d+\.\d+\.\d+)(?:-([A-Za-z0-9_-]+))?$/)
+if (!versionMatch.matches()) {
+    throw new GradleException("Invalid version '${project.version}': expected X.Y.Z or X.Y.Z-suffix (e.g. 1.2.0, v1.2.0, 1.2.0-rc1)")
+}
+def baseVersion = versionMatch.group(1)
+def versionSuffix = versionMatch.group(2)
+version = versionSuffix ? "${baseVersion}-${versionSuffix}" : baseVersion
+def qualifier = new Date().format('yyyyMMddHHmm', TimeZone.getTimeZone('UTC')) + (versionSuffix ? "-${versionSuffix}" : '')
+def bundleVersion = "${baseVersion}.${qualifier}"
+
+// Deletes the bundle jars (any version) in a folder. Plain file API: no Project access at execution time.
+static void deleteBundles(File dir, String bundleId) {
+    dir.listFiles()?.findAll { it.name.startsWith("${bundleId}_") && it.name.endsWith('.jar') }*.delete()
+}
+
+// --- Archi installation to compile against --------------------------------
+def archiHomeSetting = (findProperty('archiHome') ?: System.getenv('ARCHI_HOME') ?: '').toString().trim()
+def archiHome = archiHomeSetting ? file(archiHomeSetting) : file('.archi-sdk/Archi')
+// Accept both the install root and macOS' Archi.app bundle
+def archiPlugins = [
+    new File(archiHome, 'plugins'),
+    new File(archiHome, 'Contents/Eclipse/plugins'),
+].find { it.directory } ?: new File(archiHome, 'plugins')
+
+// Libraries embedded in the bundle (lib/*.jar, listed in Bundle-ClassPath)
+configurations {
+    embed { transitive = false }
+    implementation.extendsFrom embed
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    embed 'com.google.code.gson:gson:2.11.0'
+
+    // Archi + Eclipse platform bundles (provided at runtime by Archi itself)
+    compileOnly fileTree(dir: archiPlugins, include: '**/*.jar')
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('compileJava') {
+    doFirst {
+        if (!archiPlugins.directory) {
+            throw new GradleException("""
+                Archi not found: ${archiPlugins}
+                Either run ./scripts/fetch-archi.sh (downloads Archi into .archi-sdk/),
+                or point the build to an existing installation:
+                  ./gradlew build -ParchiHome=/Applications/Archi.app/Contents/Eclipse
+                """.stripIndent())
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+    // The tests only cover the protocol layer: Archi bundles are not needed
+    classpath -= files(fileTree(dir: archiPlugins, include: '**/*.jar'))
+}
+
+// --- OSGi bundle ------------------------------------------------------------
+jar {
+    archiveFileName = "${bundleId}_${bundleVersion}.jar"
+    def embedded = configurations.embed
+    into('lib') { from embedded }
+    manifest {
+        attributes(
+            'Bundle-ManifestVersion': '2',
+            'Bundle-Name': 'Archi MCP Server',
+            'Bundle-SymbolicName': "${bundleId};singleton:=true",
+            'Bundle-Version': bundleVersion,
+            'Bundle-Vendor': 'redteams.fr',
+            'Bundle-ContactAddress': 'contact@redteams.fr',
+            'Bundle-Activator': 'fr.redteams.archi.mcp.Activator',
+            'Bundle-ActivationPolicy': 'lazy',
+            'Require-Capability': 'osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"',
+            'Require-Bundle': [
+                'org.eclipse.core.runtime',
+                'org.eclipse.ui',
+                'org.eclipse.emf.ecore',
+                'org.eclipse.gef',
+                'com.archimatetool.model',
+                'com.archimatetool.editor',
+            ].join(','),
+            'Import-Package': 'com.sun.net.httpserver',
+            'Automatic-Module-Name': bundleId,
+        )
+    }
+    doFirst {
+        // Bundle-ClassPath must list the embedded jars by their file name
+        manifest.attributes('Bundle-ClassPath': (['.'] + embedded.files.collect { "lib/${it.name}" }).join(','))
+        // Jar names carry a timestamp: drop the previous builds
+        deleteBundles(destinationDirectory.get().asFile, bundleId)
+    }
+}
+
+// --- .archiplugin package (Archi > Help > Manage Plug-ins > Install) --------
+def markerDir = layout.buildDirectory.dir('archiplugin-marker')
+
+tasks.register('archiPluginMarker') {
+    def out = markerDir.get().file('archi-plugin').asFile
+    outputs.file(out)
+    doLast { out.parentFile.mkdirs(); out.text = '' }
+}
+
+tasks.register('archiplugin', Zip) {
+    group = 'build'
+    description = 'Packages the bundle as an .archiplugin file installable from Archi.'
+    dependsOn 'archiPluginMarker'
+    archiveFileName = "archi-mcp-${project.version}.archiplugin"
+    destinationDirectory = layout.buildDirectory.dir('dist')
+    from(markerDir)
+    from(tasks.named('jar'))
+    // Keep only the package being built (versions differ between builds)
+    doFirst {
+        destinationDirectory.get().asFile.listFiles()?.findAll { it.name.endsWith('.archiplugin') }*.delete()
+    }
+}
+
+tasks.named('assemble') { dependsOn 'archiplugin' }
+
+// --- Developer shortcut: copy the bundle into the user's dropins folder -----
+tasks.register('installDropins', Copy) {
+    group = 'distribution'
+    description = 'Copies the bundle into ~/.archi/dropins (restart Archi afterwards).'
+    def dropins = file((findProperty('dropinsDir') ?: "${System.getProperty('user.home')}/.archi/dropins").toString())
+    from tasks.named('jar')
+    into dropins
+    doFirst {
+        // Remove previous versions of the bundle
+        deleteBundles(dropins, bundleId)
+    }
+    doLast { println "Installed into ${dropins} - restart Archi to load it." }
+}
