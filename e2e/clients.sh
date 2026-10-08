@@ -22,7 +22,7 @@ cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 cleanup
 trap cleanup EXIT
 
-docker build -q --platform linux/amd64 -t archi-mcp-e2e e2e >/dev/null
+docker build -q --platform linux/amd64 --build-arg UBUNTU_MIRROR="${UBUNTU_MIRROR:-}" -t archi-mcp-e2e e2e >/dev/null
 docker run -d --name "$CONTAINER" --platform linux/amd64 \
     -v "$ARCHI_DIR":/opt/archi:ro -v "$PWD":/work:ro \
     archi-mcp-e2e bash /work/e2e/start-archi.sh >/dev/null

@@ -13,6 +13,9 @@ on:
 env:
   # Archi used to compile against and to run the end-to-end tests
   ARCHI_VERSION: 5.10.0
+  # apt mirror for the e2e image: the one GitHub runners use, faster and more reliable
+  # than archive.ubuntu.com from Azure (read by e2e/run.sh too)
+  UBUNTU_MIRROR: http://azure.archive.ubuntu.com/ubuntu/
 
 jobs:
   build:
@@ -60,7 +63,7 @@ jobs:
         run: |
           docker version
           docker pull python:3-slim
-          docker build --progress=plain --platform linux/amd64 -t archi-mcp-e2e e2e
+          docker build --progress=plain --platform linux/amd64 --build-arg UBUNTU_MIRROR -t archi-mcp-e2e e2e
 
       - name: End-to-end tests (Archi on 127.0.0.1)
         timeout-minutes: 8

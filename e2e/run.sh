@@ -9,6 +9,7 @@
 # Prerequisites: Docker, ./scripts/fetch-archi.sh (Linux build in .archi-sdk/Archi), and a build
 # (./gradlew build or ./scripts/build-with-docker.sh). On Apple Silicon the Archi container
 # runs under x86_64 emulation: expect a slow start-up.
+# UBUNTU_MIRROR=http://... selects the apt mirror used to build the image (default: Ubuntu's).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,7 +31,7 @@ cleanup
 trap cleanup EXIT
 
 echo "Building the e2e image..."
-docker build -q --platform linux/amd64 -t archi-mcp-e2e e2e >/dev/null
+docker build -q --platform linux/amd64 --build-arg UBUNTU_MIRROR="${UBUNTU_MIRROR:-}" -t archi-mcp-e2e e2e >/dev/null
 docker network create "$NETWORK" >/dev/null
 echo "Starting the Archi container..."
 docker run -d --name "$CONTAINER" --network "$NETWORK" --platform linux/amd64 \
