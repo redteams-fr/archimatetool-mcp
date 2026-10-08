@@ -1,0 +1,21 @@
+# Weekly update pull requests, one grouped PR per ecosystem.
+# Each PR runs the full CI (build, unit and end-to-end tests) before merging.
+version: 2
+updates:
+  # Actions used by .github/workflows/build.yml
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # build.gradle (Gson embedded in the plugin, JUnit) and the Gradle wrapper
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gradle:
+        patterns: ["*"]
