@@ -41,12 +41,12 @@ repositories {
 }
 
 dependencies {
-    embed 'com.google.code.gson:gson:2.11.0'
+    embed 'com.google.code.gson:gson:2.14.0'
 
     // Archi + Eclipse platform bundles (provided at runtime by Archi itself)
     compileOnly fileTree(dir: archiPlugins, include: '**/*.jar')
 
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
