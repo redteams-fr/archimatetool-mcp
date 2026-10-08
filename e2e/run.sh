@@ -29,8 +29,10 @@ cleanup() {
 cleanup
 trap cleanup EXIT
 
+echo "Building the e2e image..."
 docker build -q --platform linux/amd64 -t archi-mcp-e2e e2e >/dev/null
 docker network create "$NETWORK" >/dev/null
+echo "Starting the Archi container..."
 docker run -d --name "$CONTAINER" --network "$NETWORK" --platform linux/amd64 \
     -e BIND="$([ $MODE = remote ] && echo 0.0.0.0 || echo 127.0.0.1)" \
     -v "$ARCHI_DIR":/opt/archi:ro \

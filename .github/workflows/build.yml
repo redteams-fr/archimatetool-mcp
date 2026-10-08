@@ -17,6 +17,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20   # a full run takes ~2 min: fail fast instead of hanging for 6 h
     permissions:
       contents: write   # needed to create the release on tags
     steps:
@@ -52,10 +53,21 @@ jobs:
       - name: Build and unit tests
         run: ./gradlew build ${{ steps.version.outputs.gradle_args }}
 
+      # Done here with full output (e2e/run.sh builds quietly): shows where a slow
+      # image pull or apt-get hangs. e2e/run.sh then reuses the cached image.
+      - name: Prepare end-to-end images
+        timeout-minutes: 8
+        run: |
+          docker version
+          docker pull python:3-slim
+          docker build --progress=plain --platform linux/amd64 -t archi-mcp-e2e e2e
+
       - name: End-to-end tests (Archi on 127.0.0.1)
+        timeout-minutes: 8
         run: ./e2e/run.sh
 
       - name: End-to-end tests (Archi on 0.0.0.0)
+        timeout-minutes: 8
         run: ./e2e/run.sh --remote
 
       - name: Collect release files
