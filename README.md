@@ -30,6 +30,7 @@ Contrairement aux serveurs MCP qui lisent des fichiers `.archimate`, le plugin a
 | `add_relationship_to_view` | Trace une relation existante sur une vue |
 | `open_view` | Ouvre la vue dans l'éditeur d'Archi |
 | `save_model` | Sauvegarde un modèle qui a déjà un fichier |
+| `validate_model` | Lance le validateur d'Archi (relations invalides, éléments inutilisés, vues vides, doublons…) et renvoie les problèmes avec l'id de l'objet concerné |
 
 ## Construire le plugin
 

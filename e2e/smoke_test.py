@@ -83,7 +83,7 @@ print(f"  ok  initialize (server {init['serverInfo']['version']}, protocol {init
 
 tools = [t["name"] for t in rpc("tools/list")["result"]["tools"]]
 print(f"  ok  tools/list: {', '.join(tools)}")
-check(len(tools) == 16, f"expected 16 tools, got {len(tools)}")
+check(len(tools) == 17, f"expected 17 tools, got {len(tools)}")
 
 # --- types
 types = call("list_element_types")
@@ -147,5 +147,21 @@ check("selection" in sel, sel)
 
 err = call("save_model", expect_error=True, model_id=mid)
 check("never been saved" in err, err)
+
+# --- validation (Archi's validator): an element on no view must be reported
+orphan = call("create_element", model_id=mid, type="Node", name="Orphan server")
+report = call("validate_model", model_id=mid)
+flagged = [i for i in report["issues"] if i.get("object", {}).get("id") == orphan["id"]]
+check(flagged, f"orphan element not reported: {report}")
+check(flagged[0]["kind"] in report["explanations"], report)
+total = sum(report["counts"].values())
+check(report["returned"] == total and not report["truncated"], report)
+print(f"      counts {report['counts']}, orphan reported as {flagged[0]['severity']}: {flagged[0]['kind']}")
+limited = call("validate_model", model_id=mid, limit=1)
+check(limited["returned"] == 1 and limited["truncated"] == (total > 1), limited)
+errors_only = call("validate_model", model_id=mid, severity="error")
+check(all(i["severity"] == "error" for i in errors_only["issues"]), errors_only)
+check(errors_only["counts"] == report["counts"], errors_only)
+call("validate_model", expect_error=True, model_id=mid, severity="fatal")
 
 print("\nAll end-to-end checks passed.")

@@ -97,6 +97,7 @@ jar {
                 'org.eclipse.gef',
                 'com.archimatetool.model',
                 'com.archimatetool.editor',
+                'com.archimatetool.hammer',
             ].join(','),
             'Import-Package': 'com.sun.net.httpserver',
             'Automatic-Module-Name': bundleId,

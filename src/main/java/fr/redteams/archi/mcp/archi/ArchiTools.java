@@ -13,5 +13,6 @@ public final class ArchiTools {
         ReadTools.register(registry);
         EditTools.register(registry);
         ViewTools.register(registry);
+        ValidationTools.register(registry);
     }
 }

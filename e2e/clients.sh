@@ -65,8 +65,8 @@ client python:3.12-slim '
 pip install -q mistral-vibe >/tmp/pip.log 2>&1 || { cat /tmp/pip.log; exit 1; }
 echo "mistral-vibe $(pip show mistral-vibe | sed -n "s/^Version: //p")"
 vibe mcp add archi --url "$URL" --api-key-env ARCHI_MCP_TOKEN >/dev/null
-python /cfg/vibe_check.py | tee /tmp/out | grep "^16 tools" >/dev/null || { cat /tmp/out; exit 1; }
-echo "  ok  16 tools listed"' || status=1
+python /cfg/vibe_check.py | tee /tmp/out | grep "^17 tools" >/dev/null || { cat /tmp/out; exit 1; }
+echo "  ok  17 tools listed"' || status=1
 
 [ $status -eq 0 ] && echo "All clients connected." || echo "Some clients failed."
 exit $status

@@ -24,6 +24,7 @@ public final class McpServerController {
             - Search before creating to avoid duplicates (search_elements).
             - Relationships are checked against the ArchiMate rules; the error lists the valid types.
             - Every change is done as one undoable command in Archi (Edit > Undo). Nothing is written to disk until save_model.
+            - After a series of changes, run validate_model and fix what it reports (unused elements, invalid relationships...).
             - get_selection returns what the user has currently selected in Archi.""";
 
     private final IPreferenceStore store;
