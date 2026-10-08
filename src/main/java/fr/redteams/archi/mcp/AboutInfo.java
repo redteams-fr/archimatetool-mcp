@@ -8,7 +8,7 @@ public final class AboutInfo {
     public static final String PRODUCT = "Archi MCP Server";
     public static final String AUTHOR = "Eric RICHARD";
     public static final String EMAIL = "contact@redteams.fr";
-    public static final String GITHUB_REPO = "redteams-fr/archi-mcp";
+    public static final String GITHUB_REPO = "redteams-fr/archimatetool-mcp";
     public static final String GITHUB_URL = "https://github.com/" + GITHUB_REPO;
     public static final String LINKEDIN_URL = "https://www.linkedin.com/in/richard-eric";
 
