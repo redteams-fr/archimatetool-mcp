@@ -18,12 +18,15 @@ import com.archimatetool.model.IDiagramModel;
 import com.archimatetool.model.IDiagramModelArchimateComponent;
 import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelArchimateObject;
+import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IDiagramModelConnection;
 import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
+import com.archimatetool.model.IFontAttribute;
 import com.archimatetool.model.IIdentifier;
+import com.archimatetool.model.ILineObject;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProfile;
 import com.archimatetool.model.IProperties;
@@ -205,6 +208,7 @@ final class ArchiJson {
                 json.addProperty("text", t.getContent());
             }
         }
+        addStyle(json, o);
         IBounds b = o.getBounds();
         if (b != null) {
             JsonObject bounds = new JsonObject();
@@ -234,6 +238,33 @@ final class ArchiJson {
                 json.addProperty("name", c.getName());
             }
         }
+        addStyle(json, c);
         return json;
+    }
+
+    /** Adds a "style" object listing the colours that differ from Archi's defaults, if any. */
+    private static void addStyle(JsonObject json, IDiagramModelComponent c) {
+        JsonObject style = new JsonObject();
+        if (c instanceof IDiagramModelObject o) {
+            addIfSet(style, "fill_color", o.getFillColor());
+            if (o.getAlpha() != 255) {
+                style.addProperty("alpha", o.getAlpha());
+            }
+        }
+        if (c instanceof ILineObject l) {
+            addIfSet(style, "line_color", l.getLineColor());
+        }
+        if (c instanceof IFontAttribute f) {
+            addIfSet(style, "font_color", f.getFontColor());
+        }
+        if (style.size() > 0) {
+            json.add("style", style);
+        }
+    }
+
+    private static void addIfSet(JsonObject json, String name, String value) {
+        if (value != null && !value.isEmpty()) {
+            json.addProperty(name, value);
+        }
     }
 }

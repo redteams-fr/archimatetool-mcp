@@ -83,7 +83,7 @@ print(f"  ok  initialize (server {init['serverInfo']['version']}, protocol {init
 
 tools = [t["name"] for t in rpc("tools/list")["result"]["tools"]]
 print(f"  ok  tools/list: {', '.join(tools)}")
-check(len(tools) == 17, f"expected 17 tools, got {len(tools)}")
+check(len(tools) == 18, f"expected 18 tools, got {len(tools)}")
 
 # --- types
 types = call("list_element_types")
@@ -140,6 +140,23 @@ content = call("get_view", id=view["id"])
 check(len(content["nodes"]) == 3 and len(content["connections"]) == 2, content)
 views = call("list_views", model_id=mid)["views"]
 check(any(v["id"] == view["id"] for v in views), views)
+
+# --- styles: colours are set on the view's node/connection, undoable, and reported by get_view
+styled = call("set_view_object_style", view_id=view["id"], object_id=n1["node_id"],
+              fill_color="#FFCC00", line_color="336699", font_color="#000000", alpha=200)
+check(styled["style"] == {"fill_color": "#ffcc00", "alpha": 200, "line_color": "#336699", "font_color": "#000000"}, styled)
+reset = call("set_view_object_style", view_id=view["id"], object_id=n1["node_id"], line_color="")
+check("line_color" not in reset["style"] and reset["style"]["fill_color"] == "#ffcc00", reset)
+cstyle = call("set_view_object_style", view_id=view["id"], object_id=conn["connection_id"], line_color="#ff0000")
+check(cstyle["style"] == {"line_color": "#ff0000"}, cstyle)
+call("set_view_object_style", expect_error=True, view_id=view["id"], object_id=conn["connection_id"], fill_color="#ff0000")
+call("set_view_object_style", expect_error=True, view_id=view["id"], object_id=n1["node_id"], fill_color="red")
+call("set_view_object_style", expect_error=True, view_id=view["id"], object_id=n1["node_id"], alpha=300)
+call("set_view_object_style", expect_error=True, view_id=view["id"], object_id=n1["node_id"])
+styled_view = call("get_view", id=view["id"])
+node1 = next(n for n in styled_view["nodes"] if n["node_id"] == n1["node_id"])
+check(node1["style"] == {"fill_color": "#ffcc00", "alpha": 200, "font_color": "#000000"}, node1)
+check(all("style" not in n for n in styled_view["nodes"] if n["node_id"] != n1["node_id"]), styled_view)
 
 call("open_view", view_id=view["id"])
 sel = call("get_selection")

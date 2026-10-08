@@ -3,6 +3,8 @@ package fr.redteams.archi.mcp.archi;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import fr.redteams.archi.mcp.server.Arguments;
 import fr.redteams.archi.mcp.server.Schema;
@@ -24,10 +26,13 @@ import com.archimatetool.model.IConnectable;
 import com.archimatetool.model.IDiagramModel;
 import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelArchimateObject;
+import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IDiagramModelConnection;
 import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IFolder;
+import com.archimatetool.model.IFontAttribute;
+import com.archimatetool.model.ILineObject;
 import com.archimatetool.model.viewpoints.IViewpoint;
 import com.archimatetool.model.viewpoints.ViewpointManager;
 import com.google.gson.JsonArray;
@@ -45,6 +50,8 @@ final class ViewTools {
     private static final int GRID_Y = 100;
     private static final int GRID_COLUMNS = 5;
     private static final int MARGIN = 24;
+
+    private static final Pattern HEX_COLOR = Pattern.compile("#?([0-9a-fA-F]{6})");
 
     static void register(ToolRegistry registry) {
         registry.register(new Tool("create_view", "Create view",
@@ -82,6 +89,20 @@ final class ViewTools {
                         .string("target_node_id", "Optional target node (when the element appears several times).", false)
                         .build(),
                 false, ViewTools::addRelationshipToView));
+
+        registry.register(new Tool("set_view_object_style", "Set view object style",
+                "Sets the colours of a node or a connection on a view: fill, line and font colours as #rrggbb, "
+                        + "and the fill opacity. An empty string resets a colour to Archi's default. "
+                        + "Only this view is changed, not the element or relationship itself.",
+                Schema.object()
+                        .string("view_id", "View id.", true)
+                        .string("object_id", "Node id or connection id (see get_view).", true)
+                        .string("fill_color", "Fill colour, e.g. #ffcc00 (nodes only). Empty string resets it.", false)
+                        .string("line_color", "Line or border colour, e.g. #333333. Empty string resets it.", false)
+                        .string("font_color", "Text colour, e.g. #000000. Empty string resets it.", false)
+                        .integer("alpha", "Fill opacity, from 0 (transparent) to 255 (opaque, the default) (nodes only).", false)
+                        .build(),
+                false, ViewTools::setViewObjectStyle));
 
         registry.register(new Tool("open_view", "Open view in Archi",
                 "Opens a view in Archi's diagram editor so the user can see it.",
@@ -228,6 +249,50 @@ final class ViewTools {
         });
     }
 
+    private static ToolResult setViewObjectStyle(Arguments args) throws Exception {
+        String viewId = args.string("view_id");
+        String objectId = args.string("object_id");
+        String fill = color(args, "fill_color");
+        String line = color(args, "line_color");
+        String font = color(args, "font_color");
+        Integer alpha = args.optInteger("alpha");
+        if (fill == null && line == null && font == null && alpha == null) {
+            throw new ToolException("Nothing to change: pass fill_color, line_color, font_color and/or alpha");
+        }
+        if (alpha != null && (alpha < 0 || alpha > 255)) {
+            throw new ToolException("Argument 'alpha' must be between 0 and 255, got " + alpha);
+        }
+
+        return ArchiAccess.onUiThread(() -> {
+            IDiagramModel view = ArchiAccess.object(viewId, null, IDiagramModel.class, "view");
+            IDiagramModelComponent object = component(view, objectId);
+            if (!(object instanceof IDiagramModelObject) && (fill != null || alpha != null)) {
+                throw new ToolException("fill_color and alpha only apply to nodes, not to connection '" + objectId + "'");
+            }
+
+            Style before = Style.of(object);
+            Style after = before.with(fill, line, font, alpha);
+            ArchiAccess.execute(view.getArchimateModel(), new ModelCommand("Change style",
+                    () -> after.applyTo(object),
+                    () -> before.applyTo(object)));
+            return ToolResult.json(object instanceof IDiagramModelObject o
+                    ? ArchiJson.node(o) : ArchiJson.connection((IDiagramModelConnection) object));
+        });
+    }
+
+    /** Reads a colour argument: null when absent, "" to reset, otherwise a normalised #rrggbb. */
+    private static String color(Arguments args, String name) throws ToolException {
+        String value = args.optString(name, null);
+        if (value == null || value.isBlank()) {
+            return value == null ? null : "";
+        }
+        Matcher m = HEX_COLOR.matcher(value.strip());
+        if (!m.matches()) {
+            throw new ToolException("Argument '" + name + "' must be a colour like #ffcc00 (or \"\" to reset), got '" + value + "'");
+        }
+        return "#" + m.group(1).toLowerCase();
+    }
+
     private static ToolResult openView(Arguments args) throws Exception {
         String viewId = args.string("view_id");
         return ArchiAccess.onUiThread(() -> {
@@ -263,6 +328,16 @@ final class ViewTools {
         throw new ToolException("No node '" + nodeId + "' in view '" + view.getName() + "' (see get_view)");
     }
 
+    private static IDiagramModelComponent component(IDiagramModel view, String id) throws ToolException {
+        for (Iterator<EObject> it = view.eAllContents(); it.hasNext();) {
+            if (it.next() instanceof IDiagramModelComponent c && (c instanceof IDiagramModelObject || c instanceof IDiagramModelConnection)
+                    && id.equals(c.getId())) {
+                return c;
+            }
+        }
+        throw new ToolException("No node or connection '" + id + "' in view '" + view.getName() + "' (see get_view)");
+    }
+
     private static List<IDiagramModelArchimateObject> nodesOf(IDiagramModel view, EObject element) {
         List<IDiagramModelArchimateObject> nodes = new ArrayList<>();
         for (Iterator<EObject> it = view.eAllContents(); it.hasNext();) {
@@ -277,6 +352,50 @@ final class ViewTools {
         IDiagramModelArchimateConnection connection = ArchimateDiagramModelFactory.createDiagramModelArchimateConnection(relationship);
         ArchiAccess.ensureId(connection);
         return connection;
+    }
+
+    /**
+     * The colours of a node or connection; a null colour means Archi's default.
+     * An explicit line colour turns off "derive line colour from fill colour", otherwise Archi would ignore it.
+     */
+    private record Style(String fill, String line, String font, int alpha, boolean deriveLine) {
+
+        static Style of(IDiagramModelComponent c) {
+            String line = c instanceof ILineObject l ? l.getLineColor() : null;
+            String font = c instanceof IFontAttribute f ? f.getFontColor() : null;
+            if (c instanceof IDiagramModelObject o) {
+                return new Style(o.getFillColor(), line, font, o.getAlpha(), o.getDeriveElementLineColor());
+            }
+            return new Style(null, line, font, 255, true);
+        }
+
+        /** A copy with the given changes: null keeps the current value, "" resets it. */
+        Style with(String fill, String line, String font, Integer alpha) {
+            return new Style(
+                    fill != null ? emptyToNull(fill) : this.fill,
+                    line != null ? emptyToNull(line) : this.line,
+                    font != null ? emptyToNull(font) : this.font,
+                    alpha != null ? alpha : this.alpha,
+                    line != null ? line.isEmpty() : this.deriveLine);
+        }
+
+        void applyTo(IDiagramModelComponent c) {
+            if (c instanceof IDiagramModelObject o) {
+                o.setFillColor(fill);
+                o.setAlpha(alpha);
+                o.setDeriveElementLineColor(deriveLine);
+            }
+            if (c instanceof ILineObject l) {
+                l.setLineColor(line);
+            }
+            if (c instanceof IFontAttribute f) {
+                f.setFontColor(font);
+            }
+        }
+
+        private static String emptyToNull(String s) {
+            return s.isEmpty() ? null : s;
+        }
     }
 
     private record Link(IDiagramModelArchimateConnection connection, IConnectable source, IConnectable target) {

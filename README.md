@@ -19,7 +19,7 @@ Contrairement aux serveurs MCP qui lisent des fichiers `.archimate`, le plugin a
 | `list_element_types` | Types d'éléments (par couche), types de relations, ids de points de vue |
 | `search_elements` | Recherche par texte, type ou propriété |
 | `get_element` | Détail d'un élément ou d'une relation : documentation, propriétés, relations, vues |
-| `list_views` / `get_view` | Vues et leur contenu : nœuds imbriqués, positions, connexions |
+| `list_views` / `get_view` | Vues et leur contenu : nœuds imbriqués, positions, connexions, couleurs personnalisées |
 | `get_selection` | Sélection courante dans Archi et vue active |
 | `create_model` | Nouveau modèle vide |
 | `create_element` | Nouvel élément (type tolérant : `BusinessActor`, `business-actor`, `Business Actor`) |
@@ -28,6 +28,7 @@ Contrairement aux serveurs MCP qui lisent des fichiers `.archimate`, le plugin a
 | `create_view` | Nouvelle vue, avec un point de vue facultatif |
 | `add_to_view` | Ajoute un élément sur une vue et trace ses relations avec ce qui y est déjà |
 | `add_relationship_to_view` | Trace une relation existante sur une vue |
+| `set_view_object_style` | Couleurs d'un nœud ou d'une connexion sur une vue : fond, trait, texte (`#rrggbb`, `""` rétablit la couleur par défaut) et opacité du fond |
 | `open_view` | Ouvre la vue dans l'éditeur d'Archi |
 | `save_model` | Sauvegarde un modèle qui a déjà un fichier |
 | `validate_model` | Lance le validateur d'Archi (relations invalides, éléments inutilisés, vues vides, doublons…) et renvoie les problèmes avec l'id de l'objet concerné |
