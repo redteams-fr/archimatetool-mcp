@@ -22,6 +22,9 @@ public final class McpServerController {
             - Start with list_models; pass model_id when several models are open.
             - Use list_element_types for valid element/relationship type names (e.g. BusinessActor, ApplicationComponent, ServingRelationship).
             - Search before creating to avoid duplicates (search_elements).
+            - To create several elements and/or relationships, use create_batch rather than one call per object: \
+            local refs link the new elements together, view_id puts them on a view and draws their relationships, \
+            and the whole batch is one undoable command (nothing is created if one item is invalid).
             - Relationships are checked against the ArchiMate rules; the error lists the valid types.
             - Every change is done as one undoable command in Archi (Edit > Undo). Nothing is written to disk until save_model.
             - After a series of changes, run validate_model and fix what it reports (unused elements, invalid relationships...).

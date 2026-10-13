@@ -24,6 +24,7 @@ Contrairement aux serveurs MCP qui lisent des fichiers `.archimate`, le plugin a
 | `create_model` | Nouveau modèle vide |
 | `create_element` | Nouvel élément (type tolérant : `BusinessActor`, `business-actor`, `Business Actor`) |
 | `create_relationship` | Nouvelle relation validée (`Serving` équivaut à `ServingRelationship`) |
+| `create_batch` | Plusieurs éléments et relations en un appel, liés par des références locales (`ref`), en une seule commande annulable (rien n'est créé si un objet est invalide) ; avec `view_id`, ajoute les éléments sur une vue (position, taille, imbrication dans un groupe du lot ou un nœud existant via `parent`) et y trace les relations |
 | `update_element` | Nom, documentation, propriétés (fusionnées ; `null` supprime une clé) |
 | `create_view` | Nouvelle vue, avec un point de vue facultatif |
 | `add_to_view` | Ajoute un élément sur une vue et trace ses relations avec ce qui y est déjà |
@@ -173,6 +174,7 @@ Utilisez `127.0.0.1` plutôt que `localhost` : certains clients essaient d'abord
 
 - « Dans Archi, liste les applications qui servent le processus *Traiter une commande*. »
 - « Crée une vue de coopération applicative avec le CRM, l'ERP et leurs flux. »
+- « Modélise la chaîne de commande (acteurs, processus, applications et leurs relations) et affiche-la sur une nouvelle vue. »
 - « Documente les éléments sélectionnés. »
 
 ## Tester
@@ -237,6 +239,7 @@ src/main/java/fr/redteams/archi/mcp/
 │   └── Tool, ToolRegistry, ToolResult, Arguments, Schema, …
 └── archi/                      outils Archi
     ├── ReadTools.java / EditTools.java / ViewTools.java
+    ├── BatchTools.java         create_batch : création groupée en une commande
     ├── ArchiAccess.java        exécution dans le thread UI, recherche par id, pile de commandes
     ├── ArchiJson.java          sérialisation des objets du modèle
     ├── ConceptTypes.java       résolution des types ArchiMate
@@ -247,7 +250,7 @@ src/main/java/fr/redteams/archi/mcp/
 
 - **Pas de SDK MCP Java.** Il aurait fallu embarquer Jackson, Reactor et un conteneur de servlets dans un bundle OSGi. Le sous-ensemble du protocole utile ici (outils, réponses JSON synchrones) tient en deux classes, au-dessus du serveur HTTP du JRE qu'Archi fournit déjà. La seule dépendance embarquée est Gson (`lib/`).
 - **Thread UI.** EMF n'est pas thread-safe : chaque outil s'exécute via `Display.syncExec`, comme les actions d'Archi.
-- **Annulation.** Les écritures passent par la `CommandStack` du modèle (`model.getAdapter(CommandStack.class)`). Une modification faite par l'IA s'annule donc comme une modification manuelle.
+- **Annulation.** Les écritures passent par la `CommandStack` du modèle (`model.getAdapter(CommandStack.class)`). Une modification faite par l'IA s'annule donc comme une modification manuelle. Un appel à `create_batch` forme une seule commande : un seul *Annuler* retire tout le lot.
 - **Transport.** Les réponses sont en `application/json`, sans flux SSE. Un GET renvoie 405, et une session inconnue renvoie 404 (cas d'un Archi redémarré), ce qui pousse le client à se réinitialiser.
 
 

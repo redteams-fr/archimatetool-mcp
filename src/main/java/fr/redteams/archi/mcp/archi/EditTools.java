@@ -109,16 +109,7 @@ final class EditTools {
 
         return ArchiAccess.onUiThread(() -> {
             IArchimateModel model = ArchiAccess.model(modelId);
-            EClass eClass = ConceptTypes.element(type);
-            IArchimateElement element = (IArchimateElement) IArchimateFactory.eINSTANCE.create(eClass);
-            ArchiAccess.ensureId(element);
-            element.setName(name);
-            if (documentation != null) {
-                element.setDocumentation(documentation);
-            }
-            if (properties != null) {
-                element.getProperties().addAll(mergeProperties(List.of(), properties));
-            }
+            IArchimateElement element = newElement(type, name, documentation, properties);
             IFolder folder = targetFolder(model, element, folderId);
 
             ArchiAccess.execute(model, new ModelCommand("Create " + name,
@@ -146,27 +137,10 @@ final class EditTools {
             if (target.getArchimateModel() != model) {
                 throw new ToolException("Source and target belong to different models");
             }
-            EClass eClass = ConceptTypes.relationship(type);
-            if (!ArchimateModelUtils.isValidRelationship(source, target, eClass)) {
-                List<String> valid = ArchimateModelUtils.getValidRelationships(source, target).stream().map(EClass::getName).toList();
-                throw new ToolException(eClass.getName() + " is not allowed from " + source.eClass().getName()
-                        + " to " + target.eClass().getName() + ". Valid relationship types: "
-                        + (valid.isEmpty() ? "none" : String.join(", ", valid)));
-            }
-            IArchimateRelationship relationship = (IArchimateRelationship) IArchimateFactory.eINSTANCE.create(eClass);
-            ArchiAccess.ensureId(relationship);
-            if (name != null) {
-                relationship.setName(name);
-            }
-            if (documentation != null) {
-                relationship.setDocumentation(documentation);
-            }
-            if (properties != null) {
-                relationship.getProperties().addAll(mergeProperties(List.of(), properties));
-            }
+            IArchimateRelationship relationship = newRelationship(type, source, target, name, documentation, properties);
             IFolder folder = model.getDefaultFolderForObject(relationship);
 
-            ArchiAccess.execute(model, new ModelCommand("Create " + eClass.getName(),
+            ArchiAccess.execute(model, new ModelCommand("Create " + relationship.eClass().getName(),
                     () -> {
                         relationship.connect(source, target);
                         folder.getElements().add(relationship);
@@ -178,6 +152,48 @@ final class EditTools {
 
             return ToolResult.json(ArchiJson.summary(relationship));
         });
+    }
+
+    /** A new element with an id, not yet added to any folder. */
+    static IArchimateElement newElement(String type, String name, String documentation, Map<String, String> properties)
+            throws ToolException {
+        IArchimateElement element = (IArchimateElement) IArchimateFactory.eINSTANCE.create(ConceptTypes.element(type));
+        ArchiAccess.ensureId(element);
+        element.setName(name);
+        if (documentation != null) {
+            element.setDocumentation(documentation);
+        }
+        if (properties != null) {
+            element.getProperties().addAll(mergeProperties(List.of(), properties));
+        }
+        return element;
+    }
+
+    /**
+     * A new relationship with an id, checked against the ArchiMate rules but neither connected
+     * nor added to a folder: the command does both, so that undo can reverse them.
+     */
+    static IArchimateRelationship newRelationship(String type, IArchimateConcept source, IArchimateConcept target,
+            String name, String documentation, Map<String, String> properties) throws ToolException {
+        EClass eClass = ConceptTypes.relationship(type);
+        if (!ArchimateModelUtils.isValidRelationship(source, target, eClass)) {
+            List<String> valid = ArchimateModelUtils.getValidRelationships(source, target).stream().map(EClass::getName).toList();
+            throw new ToolException(eClass.getName() + " is not allowed from " + source.eClass().getName()
+                    + " to " + target.eClass().getName() + ". Valid relationship types: "
+                    + (valid.isEmpty() ? "none" : String.join(", ", valid)));
+        }
+        IArchimateRelationship relationship = (IArchimateRelationship) IArchimateFactory.eINSTANCE.create(eClass);
+        ArchiAccess.ensureId(relationship);
+        if (name != null) {
+            relationship.setName(name);
+        }
+        if (documentation != null) {
+            relationship.setDocumentation(documentation);
+        }
+        if (properties != null) {
+            relationship.getProperties().addAll(mergeProperties(List.of(), properties));
+        }
+        return relationship;
     }
 
     private static ToolResult updateElement(Arguments args) throws Exception {

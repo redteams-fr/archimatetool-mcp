@@ -12,6 +12,7 @@ public final class ArchiTools {
     public static void registerAll(ToolRegistry registry) {
         ReadTools.register(registry);
         EditTools.register(registry);
+        BatchTools.register(registry);
         ViewTools.register(registry);
         ValidationTools.register(registry);
     }

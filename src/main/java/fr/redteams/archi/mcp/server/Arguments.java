@@ -1,10 +1,14 @@
 package fr.redteams.archi.mcp.server;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 
 /**
  * Typed access to the {@code arguments} object of a {@code tools/call} request.
@@ -99,5 +103,35 @@ public final class Arguments {
             }
         }
         return map;
+    }
+
+    /**
+     * Reads an array of objects, each one wrapped in its own {@link Arguments}.
+     * An array sent as a JSON string is accepted too: some clients serialise nested arguments.
+     */
+    public List<Arguments> optObjectArray(String name) throws ToolException {
+        if (!has(name)) {
+            return null;
+        }
+        JsonElement e = json.get(name);
+        if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isString()) {
+            try {
+                e = JsonParser.parseString(e.getAsString());
+            }
+            catch (JsonParseException ex) {
+                throw new ToolException("Argument '" + name + "' must be an array of objects");
+            }
+        }
+        if (!e.isJsonArray()) {
+            throw new ToolException("Argument '" + name + "' must be an array of objects");
+        }
+        List<Arguments> items = new ArrayList<>();
+        for (JsonElement item : e.getAsJsonArray()) {
+            if (!item.isJsonObject()) {
+                throw new ToolException("Each item of '" + name + "' must be an object");
+            }
+            items.add(new Arguments(item.getAsJsonObject()));
+        }
+        return items;
     }
 }

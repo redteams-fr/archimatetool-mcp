@@ -42,6 +42,19 @@ public final class Schema {
         return this;
     }
 
+    /** An array of objects, each one described by {@code items}. */
+    public Schema objectArray(String name, String description, Schema items, boolean isRequired) {
+        JsonObject p = new JsonObject();
+        p.addProperty("type", "array");
+        p.addProperty("description", description);
+        p.add("items", items.build());
+        properties.add(name, p);
+        if (isRequired) {
+            required.add(name);
+        }
+        return this;
+    }
+
     private Schema property(String name, String type, String description, boolean isRequired) {
         JsonObject p = new JsonObject();
         p.addProperty("type", type);

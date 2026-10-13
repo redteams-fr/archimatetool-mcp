@@ -12,6 +12,7 @@ import fr.redteams.archi.mcp.server.Tool;
 import fr.redteams.archi.mcp.server.ToolException;
 import fr.redteams.archi.mcp.server.ToolRegistry;
 import fr.redteams.archi.mcp.server.ToolResult;
+import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 
 import com.archimatetool.editor.diagram.ArchimateDiagramModelFactory;
@@ -163,10 +164,7 @@ final class ViewTools {
             IArchimateDiagramModel view = ArchiAccess.object(viewId, null, IArchimateDiagramModel.class, "ArchiMate view");
             IArchimateModel model = view.getArchimateModel();
             IArchimateElement element = ArchiAccess.object(elementId, model.getId(), IArchimateElement.class, "element");
-            if (!ViewpointManager.INSTANCE.isAllowedConceptForDiagramModel(view, element.eClass())) {
-                throw new ToolException(element.eClass().getName() + " is not allowed in view '" + view.getName()
-                        + "' because of its viewpoint (" + view.getViewpoint() + ")");
-            }
+            checkAllowed(view, element.eClass());
 
             IDiagramModelContainer parent = view;
             if (parentNodeId != null && !parentNodeId.isBlank()) {
@@ -177,15 +175,7 @@ final class ViewTools {
                 parent = container;
             }
 
-            IDiagramModelArchimateObject node = ArchimateDiagramModelFactory.createDiagramModelArchimateObject(element);
-            ArchiAccess.ensureId(node);
-            IBounds defaults = node.getBounds();
-            int index = parent.getChildren().size();
-            int nx = x != null ? x : MARGIN + (index % GRID_COLUMNS) * GRID_X;
-            int ny = y != null ? y : MARGIN + (index / GRID_COLUMNS) * GRID_Y;
-            int nw = width != null ? width : defaults != null ? defaults.getWidth() : -1;
-            int nh = height != null ? height : defaults != null ? defaults.getHeight() : -1;
-            node.setBounds(nx, ny, nw, nh);
+            IDiagramModelArchimateObject node = newNode(element, parent.getChildren().size(), x, y, width, height);
 
             // Connections to the nodes of related elements already on the view
             List<Link> links = new ArrayList<>();
@@ -302,6 +292,30 @@ final class ViewTools {
         });
     }
 
+    static void checkAllowed(IArchimateDiagramModel view, EClass type) throws ToolException {
+        if (!ViewpointManager.INSTANCE.isAllowedConceptForDiagramModel(view, type)) {
+            throw new ToolException(type.getName() + " is not allowed in view '" + view.getName()
+                    + "' because of its viewpoint (" + view.getViewpoint() + ")");
+        }
+    }
+
+    /**
+     * A new node showing the element, not yet added to its parent. Without a position it takes
+     * the given cell of the automatic grid (usually the parent's number of children).
+     */
+    static IDiagramModelArchimateObject newNode(IArchimateElement element, int gridIndex,
+            Integer x, Integer y, Integer width, Integer height) {
+        IDiagramModelArchimateObject node = ArchimateDiagramModelFactory.createDiagramModelArchimateObject(element);
+        ArchiAccess.ensureId(node);
+        IBounds defaults = node.getBounds();
+        int nx = x != null ? x : MARGIN + (gridIndex % GRID_COLUMNS) * GRID_X;
+        int ny = y != null ? y : MARGIN + (gridIndex / GRID_COLUMNS) * GRID_Y;
+        int nw = width != null ? width : defaults != null ? defaults.getWidth() : -1;
+        int nh = height != null ? height : defaults != null ? defaults.getHeight() : -1;
+        node.setBounds(nx, ny, nw, nh);
+        return node;
+    }
+
     private static IDiagramModelArchimateObject endNode(IArchimateDiagramModel view, String nodeId,
             IArchimateRelationship relationship, boolean isSource) throws ToolException {
         EObject end = isSource ? relationship.getSource() : relationship.getTarget();
@@ -319,7 +333,7 @@ final class ViewTools {
         return nodes.get(0);
     }
 
-    private static IDiagramModelObject node(IDiagramModel view, String nodeId) throws ToolException {
+    static IDiagramModelObject node(IDiagramModel view, String nodeId) throws ToolException {
         for (Iterator<EObject> it = view.eAllContents(); it.hasNext();) {
             if (it.next() instanceof IDiagramModelObject o && nodeId.equals(o.getId())) {
                 return o;
@@ -338,7 +352,7 @@ final class ViewTools {
         throw new ToolException("No node or connection '" + id + "' in view '" + view.getName() + "' (see get_view)");
     }
 
-    private static List<IDiagramModelArchimateObject> nodesOf(IDiagramModel view, EObject element) {
+    static List<IDiagramModelArchimateObject> nodesOf(IDiagramModel view, EObject element) {
         List<IDiagramModelArchimateObject> nodes = new ArrayList<>();
         for (Iterator<EObject> it = view.eAllContents(); it.hasNext();) {
             if (it.next() instanceof IDiagramModelArchimateObject o && o.getArchimateElement() == element) {
@@ -348,7 +362,7 @@ final class ViewTools {
         return nodes;
     }
 
-    private static IDiagramModelArchimateConnection newConnection(IArchimateRelationship relationship) {
+    static IDiagramModelArchimateConnection newConnection(IArchimateRelationship relationship) {
         IDiagramModelArchimateConnection connection = ArchimateDiagramModelFactory.createDiagramModelArchimateConnection(relationship);
         ArchiAccess.ensureId(connection);
         return connection;
@@ -398,7 +412,7 @@ final class ViewTools {
         }
     }
 
-    private record Link(IDiagramModelArchimateConnection connection, IConnectable source, IConnectable target) {
+    record Link(IDiagramModelArchimateConnection connection, IConnectable source, IConnectable target) {
         void connect() {
             connection.connect(source, target);
         }

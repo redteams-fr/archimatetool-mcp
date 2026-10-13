@@ -83,7 +83,7 @@ print(f"  ok  initialize (server {init['serverInfo']['version']}, protocol {init
 
 tools = [t["name"] for t in rpc("tools/list")["result"]["tools"]]
 print(f"  ok  tools/list: {', '.join(tools)}")
-check(len(tools) == 18, f"expected 18 tools, got {len(tools)}")
+check(len(tools) == 19, f"expected 19 tools, got {len(tools)}")
 
 # --- types
 types = call("list_element_types")
@@ -157,6 +157,62 @@ styled_view = call("get_view", id=view["id"])
 node1 = next(n for n in styled_view["nodes"] if n["node_id"] == n1["node_id"])
 check(node1["style"] == {"fill_color": "#ffcc00", "alpha": 200, "font_color": "#000000"}, node1)
 check(all("style" not in n for n in styled_view["nodes"] if n["node_id"] != n1["node_id"]), styled_view)
+
+# --- batch: elements linked by local refs, drawn on a view, as one command
+bview = call("create_view", model_id=mid, name="Online orders")
+batch = call("create_batch", view_id=bview["id"], elements=[
+    {"ref": "portal", "type": "ApplicationComponent", "name": "Web portal", "properties": {"owner": "Web"}},
+    {"ref": "api", "type": "Application Interface", "name": "Orders API"},
+    {"ref": "cust", "type": "BusinessActor", "name": "Customer", "x": 400, "y": 24},
+], relationships=[
+    {"ref": "comp", "type": "Composition", "source": "portal", "target": "api"},
+    {"type": "Serving", "source": "api", "target": "cust"},
+    {"type": "Serving", "source": "portal", "target": proc["id"]},  # proc is not on this view
+])
+check([e["ref"] for e in batch["elements"]] == ["portal", "api", "cust"], batch)
+check(batch["relationships"][0]["source"]["id"] == batch["elements"][0]["id"], batch)
+check(batch["relationships"][2]["target"]["id"] == proc["id"], batch)
+check(len(batch["view"]["nodes_added"]) == 3 and len(batch["view"]["connections_added"]) == 2, batch)
+check(len(batch["view"]["relationships_not_drawn"]) == 1, batch)
+check(batch["view"]["nodes_added"][2]["bounds"]["x"] == 400, batch)
+bcontent = call("get_view", id=bview["id"])
+check(len(bcontent["nodes"]) == 3 and len(bcontent["connections"]) == 2, bcontent)
+
+# atomic: one invalid item, nothing created; the error names the item
+err = call("create_batch", expect_error=True, model_id=mid,
+           elements=[{"ref": "ghost", "type": "Node", "name": "Ghost node"}],
+           relationships=[{"type": "Serving", "source": "ghost", "target": "nowhere"}])
+check("relationships[0]" in err and "nothing was created" in err, err)
+check(call("search_elements", model_id=mid, query="Ghost node")["total"] == 0, "partial batch was created")
+err = call("create_batch", expect_error=True, model_id=mid,
+           elements=[{"ref": "a", "type": "Node", "name": "A"}, {"ref": "a", "type": "Node", "name": "B"}])
+check("elements[1]" in err and "used twice" in err, err)
+call("create_batch", expect_error=True, model_id=mid)
+state = next(m for m in call("list_models")["models"] if m["id"] == mid)
+check(state["elements"] == 6 and state["relationships"] == 5, state)
+
+# nesting: a Grouping of this call as parent (coordinates relative to it), then an existing node as parent
+nview = call("create_view", model_id=mid, name="Layers")
+nested = call("create_batch", view_id=nview["id"], elements=[
+    {"ref": "biz", "type": "Grouping", "name": "Business", "x": 20, "y": 20, "width": 400, "height": 120},
+    {"ref": "clerk", "type": "BusinessRole", "name": "Clerk", "parent": "biz", "x": 20, "y": 40, "width": 120, "height": 55},
+    {"ref": "ship", "type": "BusinessProcess", "name": "Ship order", "parent": "biz"},
+], relationships=[{"type": "Assignment", "source": "clerk", "target": "ship"}])
+check(len(nested["view"]["connections_added"]) == 1, nested)
+group_node = nested["view"]["nodes_added"][0]
+check(group_node["ref"] == "biz" and group_node["bounds"]["width"] == 400, nested)
+layers = call("get_view", id=nview["id"])
+check(len(layers["nodes"]) == 1 and len(layers["nodes"][0]["children"]) == 2, layers)
+check(layers["nodes"][0]["children"][0]["bounds"]["x"] == 20, layers)
+more = call("create_batch", view_id=nview["id"], elements=[
+    {"type": "BusinessEvent", "name": "Order paid", "parent": group_node["node_id"]}])
+check(len(call("get_view", id=nview["id"])["nodes"][0]["children"]) == 3, more)
+err = call("create_batch", expect_error=True, view_id=nview["id"],
+           elements=[{"type": "BusinessEvent", "name": "Lost", "parent": "later"},
+                     {"ref": "later", "type": "Grouping", "name": "Later"}])
+check("elements[0]" in err and "parent" in err, err)
+err = call("create_batch", expect_error=True, model_id=mid, elements=[{"type": "Node", "name": "N", "parent": "biz"}])
+check("needs view_id" in err, err)
 
 call("open_view", view_id=view["id"])
 sel = call("get_selection")
