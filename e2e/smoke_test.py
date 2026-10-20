@@ -214,6 +214,47 @@ check("elements[0]" in err and "parent" in err, err)
 err = call("create_batch", expect_error=True, model_id=mid, elements=[{"type": "Node", "name": "N", "parent": "biz"}])
 check("needs view_id" in err, err)
 
+# reuse: a replayed batch reuses elements, relationships and nodes; styles and hidden relationships
+rview = call("create_view", model_id=mid, name="Replay")
+replay = dict(view_id=rview["id"], reuse_existing=True, elements=[
+    {"ref": "apps", "type": "Grouping", "name": "Applications", "x": 20, "y": 20, "width": 320, "height": 120},
+    {"ref": "portal", "type": "ApplicationComponent", "name": " web PORTAL ", "parent": "apps", "x": 20, "y": 35,
+     "fill_color": "#C5E0B4", "documentation": "ignored on reuse"},
+    {"ref": "erp", "type": "ApplicationComponent", "name": "ERP", "parent": "apps", "x": 170, "y": 35,
+     "fill_color": "#f8cbad", "alpha": 200},
+], relationships=[
+    {"type": "Flow", "source": "portal", "target": "erp", "name": "F1"},
+    {"type": "Aggregation", "source": "apps", "target": "portal", "draw": False},
+    {"type": "Aggregation", "source": "apps", "target": "erp", "draw": False},
+])
+first = call("create_batch", **replay)
+check([e.get("reused", False) for e in first["elements"]] == [False, True, False], first)
+check(first["elements"][1]["id"] == batch["elements"][0]["id"], first)  # the "Web portal" of the batch above
+check(len(first["view"]["nodes_added"]) == 3 and first["view"]["nodes_reused"] == [], first)
+check(len(first["view"]["connections_added"]) == 1, first)  # the flow; the aggregations are not drawn
+second = call("create_batch", **replay)
+check(all(e.get("reused") for e in second["elements"]) and all(r.get("reused") for r in second["relationships"]), second)
+check(second["view"]["nodes_added"] == [] and len(second["view"]["nodes_reused"]) == 3, second)
+check(second["view"]["connections_added"] == [], second)
+rcontent = call("get_view", id=rview["id"])
+check(len(rcontent["nodes"]) == 1 and len(rcontent["connections"]) == 1, rcontent)
+kids = {c["element"]["name"]: c for c in rcontent["nodes"][0]["children"]}
+check(kids["Web portal"]["style"] == {"fill_color": "#c5e0b4"}, kids)
+check(kids["ERP"]["style"] == {"fill_color": "#f8cbad", "alpha": 200}, kids)
+portal = call("get_element", id=batch["elements"][0]["id"])
+check(portal["properties"] == {"owner": "Web"} and not portal.get("documentation"), portal)
+check(call("search_elements", model_id=mid, type="Aggregation")["total"] == 2, "aggregations duplicated")
+# ambiguous reuse, duplicates in the call, and styles without a view are errors
+call("create_element", model_id=mid, type="ApplicationComponent", name="erp ")
+err = call("create_batch", expect_error=True, model_id=mid, reuse_existing=True,
+           elements=[{"type": "ApplicationComponent", "name": "ERP"}])
+check("elements[0]" in err and "2 existing" in err, err)
+err = call("create_batch", expect_error=True, model_id=mid, reuse_existing=True,
+           elements=[{"type": "Node", "name": "Twin"}, {"type": "Node", "name": "twin"}])
+check("elements[1]" in err and "same type and name" in err, err)
+err = call("create_batch", expect_error=True, model_id=mid, elements=[{"type": "Node", "name": "N", "fill_color": "#ffffff"}])
+check("need view_id" in err, err)
+
 call("open_view", view_id=view["id"])
 sel = call("get_selection")
 check("selection" in sel, sel)

@@ -24,7 +24,7 @@ Contrairement aux serveurs MCP qui lisent des fichiers `.archimate`, le plugin a
 | `create_model` | Nouveau modèle vide |
 | `create_element` | Nouvel élément (type tolérant : `BusinessActor`, `business-actor`, `Business Actor`) |
 | `create_relationship` | Nouvelle relation validée (`Serving` équivaut à `ServingRelationship`) |
-| `create_batch` | Plusieurs éléments et relations en un appel, liés par des références locales (`ref`), en une seule commande annulable (rien n'est créé si un objet est invalide) ; avec `view_id`, ajoute les éléments sur une vue (position, taille, imbrication dans un groupe du lot ou un nœud existant via `parent`) et y trace les relations |
+| `create_batch` | Plusieurs éléments et relations en un appel, liés par des références locales (`ref`), en une seule commande annulable (rien n'est créé si un objet est invalide) ; avec `view_id`, ajoute les éléments sur une vue (position, taille, imbrication dans un groupe du lot ou un nœud existant via `parent`) et y trace les relations ; avec `reuse_existing`, le lot peut être rejoué : un élément (même type, même nom) ou une relation (même type, mêmes extrémités, même nom) existants sont réutilisés au lieu d'être dupliqués, sans doublon de nœud ni de connexion sur la vue ; par élément, `fill_color`, `line_color`, `font_color`, `alpha` ; par relation, `draw: false` pour la créer sans la tracer |
 | `update_element` | Nom, documentation, propriétés (fusionnées ; `null` supprime une clé) |
 | `create_view` | Nouvelle vue, avec un point de vue facultatif |
 | `add_to_view` | Ajoute un élément sur une vue et trace ses relations avec ce qui y est déjà |

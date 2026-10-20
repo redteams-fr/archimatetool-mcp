@@ -271,7 +271,7 @@ final class ViewTools {
     }
 
     /** Reads a colour argument: null when absent, "" to reset, otherwise a normalised #rrggbb. */
-    private static String color(Arguments args, String name) throws ToolException {
+    static String color(Arguments args, String name) throws ToolException {
         String value = args.optString(name, null);
         if (value == null || value.isBlank()) {
             return value == null ? null : "";
@@ -372,7 +372,7 @@ final class ViewTools {
      * The colours of a node or connection; a null colour means Archi's default.
      * An explicit line colour turns off "derive line colour from fill colour", otherwise Archi would ignore it.
      */
-    private record Style(String fill, String line, String font, int alpha, boolean deriveLine) {
+    record Style(String fill, String line, String font, int alpha, boolean deriveLine) {
 
         static Style of(IDiagramModelComponent c) {
             String line = c instanceof ILineObject l ? l.getLineColor() : null;
