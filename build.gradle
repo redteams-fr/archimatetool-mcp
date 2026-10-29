@@ -41,7 +41,7 @@ repositories {
 }
 
 dependencies {
-    embed 'com.google.code.gson:gson:2.14.0'
+    embed 'com.google.code.gson:gson:2.15.0'
 
     // Archi + Eclipse platform bundles (provided at runtime by Archi itself)
     compileOnly fileTree(dir: archiPlugins, include: '**/*.jar')
